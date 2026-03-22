@@ -3,15 +3,15 @@ import { jwt } from "@elysiajs/jwt";
 import { prisma } from "../lib/prisma";
 import { getUserFromToken } from "../lib/auth";
 
-export const ticketTypeRoutes = new Elysia({ prefix: "/api/events/:eventId/ticket-types" })
+export const ticketTypeRoutes = new Elysia({ prefix: "/api/ticket-types" })
   .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET || "dev-secret" }))
-  .get("/", async ({ params }) => {
-    return prisma.ticketType.findMany({ where: { eventId: params.eventId } });
+  .get("/by-event/:id", async ({ params }) => {
+    return prisma.ticketType.findMany({ where: { eventId: params.id } });
   })
-  .post("/", async ({ params, body, headers, jwt, set }) => {
+  .post("/", async ({ body, headers, jwt, set }) => {
     const user = await getUserFromToken(jwt, headers.authorization);
     if (!user) { set.status = 401; return { error: "Unauthorized" }; }
-    const event = await prisma.event.findUnique({ where: { id: params.eventId } });
+    const event = await prisma.event.findUnique({ where: { id: body.eventId } });
     if (!event) { set.status = 404; return { error: "Event not found" }; }
     if (event.organizerId !== user.id && user.role !== "ADMIN") {
       set.status = 403; return { error: "Not authorized" };
@@ -19,13 +19,13 @@ export const ticketTypeRoutes = new Elysia({ prefix: "/api/events/:eventId/ticke
     return prisma.ticketType.create({
       data: {
         ...body,
-        eventId: params.eventId,
         salesStart: body.salesStart ? new Date(body.salesStart) : null,
         salesEnd: body.salesEnd ? new Date(body.salesEnd) : null,
       },
     });
   }, {
     body: t.Object({
+      eventId: t.String(),
       name: t.String({ minLength: 1 }),
       price: t.Number({ minimum: 0 }),
       quantity: t.Number({ minimum: 1 }),
