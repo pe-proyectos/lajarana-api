@@ -42,6 +42,16 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
     if (!user || (user.role !== "ORGANIZER" && user.role !== "ADMIN")) {
       set.status = 403; return { error: "Only organizers can create events" };
     }
+    // Plan limit check
+    if (user.plan !== "PRO") {
+      const activeEvents = await prisma.event.count({
+        where: { organizerId: user.id, status: { in: ["DRAFT", "PUBLISHED"] } },
+      });
+      if (activeEvents >= 3) {
+        set.status = 403;
+        return { error: "Has alcanzado el límite de 3 eventos del Plan Comisión. Actualiza a Pro para eventos ilimitados." };
+      }
+    }
     let slug = slugify(body.title);
     const existing = await prisma.event.findUnique({ where: { slug } });
     if (existing) slug = `${slug}-${Date.now().toString(36)}`;

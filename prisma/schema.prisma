@@ -34,6 +34,17 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum UserPlan {
+  FREE
+  PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -41,13 +52,31 @@ model User {
   name      String
   phone     String?
   role      Role     @default(ATTENDEE)
-  company   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  company       String?
+  plan          UserPlan  @default(FREE)
+  planStartedAt DateTime?
+  planExpiresAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  events  Event[]
-  tickets Ticket[]
-  orders  Order[]
+  events        Event[]
+  tickets       Ticket[]
+  orders        Order[]
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id])
+  plan             UserPlan
+  status           SubscriptionStatus @default(ACTIVE)
+  startDate        DateTime           @default(now())
+  endDate          DateTime?
+  paymentMethod    String?
+  paymentReference String?
+  amount           Decimal            @db.Decimal(10, 2)
+  createdAt        DateTime           @default(now())
 }
 
 model Event {

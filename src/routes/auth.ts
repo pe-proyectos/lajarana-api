@@ -46,7 +46,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   .get("/me", async ({ headers, jwt, set }) => {
     const user = await getUserFromToken(jwt, headers.authorization);
     if (!user) { set.status = 401; return { error: "Unauthorized" }; }
-    return { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone, company: user.company };
+    return { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone, company: user.company, plan: user.plan, planStartedAt: user.planStartedAt, planExpiresAt: user.planExpiresAt };
   })
   .post("/forgot-password", async ({ body, set }) => {
     // In production, send email with reset token
