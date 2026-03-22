@@ -22,11 +22,18 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
       skip: Number(query.offset) || 0,
     });
   })
-  .get("/:slug", async ({ params, set }) => {
-    const event = await prisma.event.findUnique({
-      where: { slug: params.slug },
+  .get("/:id", async ({ params, set }) => {
+    // Try by slug first, then by id
+    let event = await prisma.event.findUnique({
+      where: { slug: params.id },
       include: { organizer: { select: { id: true, name: true, company: true } }, ticketTypes: true },
     });
+    if (!event) {
+      event = await prisma.event.findUnique({
+        where: { id: params.id },
+        include: { organizer: { select: { id: true, name: true, company: true } }, ticketTypes: true },
+      });
+    }
     if (!event) { set.status = 404; return { error: "Event not found" }; }
     return event;
   })
