@@ -17,6 +17,7 @@ const app = new Elysia()
     if ('status' in error) set.status = (error as any).status;
     return { error: error.message || "Internal server error" };
   })
+  .get("/", () => ({ status: "ok", service: "lajarana-api" }))
   .get("/api/health", () => ({ status: "ok", service: "lajarana-api" }))
   .use(authRoutes)
   .use(eventRoutes)
