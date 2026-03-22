@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { getUserFromToken } from "../lib/auth";
 
 export const ticketTypeRoutes = new Elysia({ prefix: "/api/ticket-types" })
-  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET || "dev-secret" }))
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
   .get("/by-event/:id", async ({ params }) => {
     return prisma.ticketType.findMany({ where: { eventId: params.id } });
   })

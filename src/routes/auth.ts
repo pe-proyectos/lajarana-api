@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { hashPassword, verifyPassword, getUserFromToken } from "../lib/auth";
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
-  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET || "dev-secret" }))
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
   .post("/register", async ({ body, jwt, set }) => {
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing) { set.status = 409; return { error: "Email already registered" }; }
@@ -49,15 +49,52 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     return { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone, company: user.company, plan: user.plan, planStartedAt: user.planStartedAt, planExpiresAt: user.planExpiresAt };
   })
   .post("/forgot-password", async ({ body, set }) => {
-    // In production, send email with reset token
     const user = await prisma.user.findUnique({ where: { email: body.email } });
-    if (!user) return { message: "If the email exists, a reset link was sent" };
-    return { message: "If the email exists, a reset link was sent" };
+    if (!user) return { message: "Si el email existe, se envió un código de recuperación" };
+
+    // Generate random 6-digit code
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const hashedCode = await hashPassword(code);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetCode: hashedCode, resetCodeExpiresAt: expiresAt },
+    });
+
+    // TODO: Enviar código por email cuando se configure el servicio de correo.
+    // Por ahora se retorna en la respuesta para testing.
+    return { message: "Si el email existe, se envió un código de recuperación", code };
   }, { body: t.Object({ email: t.String({ format: "email" }) }) })
   .post("/reset-password", async ({ body, set }) => {
-    // Simplified - in production use a reset token
     const user = await prisma.user.findUnique({ where: { email: body.email } });
-    if (!user) { set.status = 404; return { error: "User not found" }; }
-    await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(body.password) } });
-    return { message: "Password reset successfully" };
-  }, { body: t.Object({ email: t.String({ format: "email" }), password: t.String({ minLength: 6 }) }) });
+    if (!user || !user.resetCode || !user.resetCodeExpiresAt) {
+      set.status = 400; return { error: "Código inválido o expirado" };
+    }
+
+    if (user.resetCodeExpiresAt < new Date()) {
+      set.status = 400; return { error: "Código expirado" };
+    }
+
+    const validCode = await verifyPassword(body.code, user.resetCode);
+    if (!validCode) {
+      set.status = 400; return { error: "Código inválido" };
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: await hashPassword(body.newPassword),
+        resetCode: null,
+        resetCodeExpiresAt: null,
+      },
+    });
+
+    return { message: "Contraseña actualizada correctamente" };
+  }, {
+    body: t.Object({
+      email: t.String({ format: "email" }),
+      code: t.String({ minLength: 6, maxLength: 6 }),
+      newPassword: t.String({ minLength: 6 }),
+    }),
+  });

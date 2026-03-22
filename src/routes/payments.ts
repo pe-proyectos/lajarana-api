@@ -19,7 +19,7 @@ const preferenceClient = new Preference(mpClient);
 const paymentClient = new Payment(mpClient);
 
 export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
-  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET || "dev-secret" }))
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
 
   // Create preference for ticket purchase
   .post("/create-preference", async ({ body, headers, jwt, set }) => {
@@ -76,6 +76,23 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
     if (orderItems.length === 0) {
       set.status = 400;
       return { error: "No hay entradas seleccionadas" };
+    }
+
+    // FIX 7: Enforce ticket limits based on event plan
+    const totalRequested = orderItems.reduce((sum, i) => sum + i.quantity, 0);
+    const totalAlreadySold = event.ticketTypes.reduce((sum, tt) => sum + tt.sold, 0);
+
+    if (event.eventPlanTicketLimit) {
+      if (totalAlreadySold + totalRequested > event.eventPlanTicketLimit) {
+        set.status = 400;
+        return { error: `Límite de entradas alcanzado. Disponibles: ${event.eventPlanTicketLimit - totalAlreadySold}` };
+      }
+    } else if (!event.eventPlanType) {
+      // No plan set — enforce 50 ticket max for free plan default
+      if (totalAlreadySold + totalRequested > 50) {
+        set.status = 400;
+        return { error: `Límite de entradas alcanzado para evento sin plan. Disponibles: ${50 - totalAlreadySold}` };
+      }
     }
 
     // Handle free tickets (total = 0)
@@ -156,8 +173,37 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
   })
 
   // MercadoPago webhook (no auth - MP sends notifications here)
-  .post("/webhook", async ({ body, query, set }) => {
+  .post("/webhook", async ({ body, query, headers, set }) => {
     try {
+      /**
+       * FIX 12: MercadoPago webhook signature verification
+       * MP sends x-signature header with format: "ts=...,v1=..."
+       * We verify using HMAC-SHA256 with the webhook secret.
+       * Template: id:[data.id];request-id:[x-request-id];ts:[ts];
+       */
+      const xSignature = headers["x-signature"] as string | undefined;
+      const xRequestId = headers["x-request-id"] as string | undefined;
+      const dataId = query["data.id"] || (body as any)?.data?.id;
+
+      if (xSignature && process.env.MP_WEBHOOK_SECRET) {
+        const parts = Object.fromEntries(
+          xSignature.split(",").map(p => { const [k, v] = p.split("="); return [k.trim(), v.trim()]; })
+        );
+        const ts = parts["ts"];
+        const v1 = parts["v1"];
+
+        const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+        const hmac = new Bun.CryptoHasher("sha256", process.env.MP_WEBHOOK_SECRET).update(manifest).digest("hex");
+
+        if (hmac !== v1) {
+          console.warn("Webhook signature verification failed");
+          set.status = 401;
+          return { error: "Invalid signature" };
+        }
+      } else if (!xSignature) {
+        console.warn("Webhook received without x-signature header — processing anyway (test mode)");
+      }
+
       // MP sends type=payment and data.id or via query params
       const topic = query.topic || query.type || (body as any)?.type;
       const paymentId = query["data.id"] || (body as any)?.data?.id;

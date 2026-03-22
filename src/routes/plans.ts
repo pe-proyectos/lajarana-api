@@ -42,7 +42,7 @@ const PLANS = {
 };
 
 export const planRoutes = new Elysia({ prefix: "/api/plans" })
-  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET || "dev-secret" }))
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
   .get("/", () => PLANS)
 
   // Activate a plan for a specific event

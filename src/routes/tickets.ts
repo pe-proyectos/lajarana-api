@@ -1,88 +1,15 @@
 import { Elysia, t } from "elysia";
 import { jwt } from "@elysiajs/jwt";
 import { prisma } from "../lib/prisma";
-import { getUserFromToken, generateToken } from "../lib/auth";
+import { getUserFromToken } from "../lib/auth";
+import QRCode from "qrcode";
 
 function generateQrToken() {
   return { token: crypto.randomUUID(), expiresAt: new Date(Date.now() + 30_000) };
 }
 
 export const ticketRoutes = new Elysia({ prefix: "/api/tickets" })
-  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET || "dev-secret" }))
-  .post("/purchase", async ({ body, headers, jwt, set }) => {
-    const user = await getUserFromToken(jwt, headers.authorization);
-    if (!user) { set.status = 401; return { error: "Unauthorized" }; }
-
-    // Validate all ticket types and availability
-    const items = body.items;
-    let total = 0;
-    const ticketTypes = await Promise.all(
-      items.map(i => prisma.ticketType.findUnique({ where: { id: i.ticketTypeId } }))
-    );
-    for (let i = 0; i < items.length; i++) {
-      const tt = ticketTypes[i];
-      if (!tt) { set.status = 404; return { error: `Ticket type not found: ${items[i].ticketTypeId}` }; }
-      if (tt.sold + items[i].quantity > tt.quantity) {
-        set.status = 400; return { error: `Not enough tickets available for ${tt.name}` };
-      }
-      total += Number(tt.price) * items[i].quantity;
-    }
-
-    const eventId = ticketTypes[0]!.eventId;
-
-    // Create order + tickets in transaction
-    const result = await prisma.$transaction(async (tx) => {
-      const order = await tx.order.create({
-        data: {
-          buyerId: user.id,
-          eventId,
-          total,
-          status: "PAID",
-          paymentMethod: body.paymentMethod || "card",
-          items: {
-            create: items.map((item, i) => ({
-              ticketTypeId: item.ticketTypeId,
-              quantity: item.quantity,
-              unitPrice: Number(ticketTypes[i]!.price),
-              subtotal: Number(ticketTypes[i]!.price) * item.quantity,
-            })),
-          },
-        },
-        include: { items: true },
-      });
-
-      const tickets = [];
-      for (let i = 0; i < items.length; i++) {
-        const tt = ticketTypes[i]!;
-        for (let j = 0; j < items[i].quantity; j++) {
-          const { token, expiresAt } = generateQrToken();
-          const ticket = await tx.ticket.create({
-            data: {
-              ticketTypeId: tt.id,
-              eventId,
-              buyerId: user.id,
-              qrToken: token,
-              qrTokenExpiresAt: expiresAt,
-            },
-          });
-          tickets.push(ticket);
-        }
-        await tx.ticketType.update({ where: { id: tt.id }, data: { sold: { increment: items[i].quantity } } });
-      }
-
-      return { order, tickets };
-    });
-
-    return result;
-  }, {
-    body: t.Object({
-      items: t.Array(t.Object({
-        ticketTypeId: t.String(),
-        quantity: t.Number({ minimum: 1 }),
-      })),
-      paymentMethod: t.Optional(t.String()),
-    }),
-  })
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
   .get("/my", async ({ headers, jwt, set }) => {
     const user = await getUserFromToken(jwt, headers.authorization);
     if (!user) { set.status = 401; return { error: "Unauthorized" }; }
@@ -101,6 +28,24 @@ export const ticketRoutes = new Elysia({ prefix: "/api/tickets" })
     });
     if (!ticket || ticket.buyerId !== user.id) { set.status = 404; return { error: "Ticket not found" }; }
     return ticket;
+  })
+  // FIX 4: QR code image generation
+  .get("/:id/qr", async ({ params, headers, jwt, set }) => {
+    const user = await getUserFromToken(jwt, headers.authorization);
+    if (!user) { set.status = 401; return { error: "Unauthorized" }; }
+    const ticket = await prisma.ticket.findUnique({ where: { id: params.id } });
+    if (!ticket || ticket.buyerId !== user.id) { set.status = 404; return { error: "Ticket not found" }; }
+
+    const qrData = JSON.stringify({
+      ticketId: ticket.id,
+      qrCode: ticket.qrCode,
+      qrToken: ticket.qrToken || "",
+    });
+
+    const pngBuffer = await QRCode.toBuffer(qrData, { type: "png", width: 300, margin: 2 });
+    set.headers["content-type"] = "image/png";
+    set.headers["cache-control"] = "no-cache";
+    return pngBuffer;
   })
   .post("/:id/refresh-qr", async ({ params, headers, jwt, set }) => {
     const user = await getUserFromToken(jwt, headers.authorization);

@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { getUserFromToken } from "../lib/auth";
 
 export const orderRoutes = new Elysia({ prefix: "/api/orders" })
-  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET || "dev-secret" }))
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
   .get("/my", async ({ headers, jwt, set }) => {
     const user = await getUserFromToken(jwt, headers.authorization);
     if (!user) { set.status = 401; return { error: "Unauthorized" }; }

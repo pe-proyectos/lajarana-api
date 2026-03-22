@@ -10,6 +10,11 @@ import { planRoutes } from "./routes/plans";
 import { userRoutes } from "./routes/users";
 import { paymentRoutes } from "./routes/payments";
 
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET environment variable is required");
+  process.exit(1);
+}
+
 const app = new Elysia()
   .use(cors({
     origin: [/\.luminari\.agency$/, /localhost/],

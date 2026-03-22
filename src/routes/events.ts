@@ -8,7 +8,7 @@ function slugify(text: string): string {
 }
 
 export const eventRoutes = new Elysia({ prefix: "/api/events" })
-  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET || "dev-secret" }))
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
   .get("/", async ({ query }) => {
     const where: any = { status: "PUBLISHED" };
     if (query.city) where.city = { contains: query.city, mode: "insensitive" };
@@ -22,8 +22,17 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
       skip: Number(query.offset) || 0,
     });
   })
+  // FIX 5: Organizer's own events (all statuses)
+  .get("/my", async ({ headers, jwt, set }) => {
+    const user = await getUserFromToken(jwt, headers.authorization);
+    if (!user) { set.status = 401; return { error: "Unauthorized" }; }
+    return prisma.event.findMany({
+      where: { organizerId: user.id },
+      include: { organizer: { select: { id: true, name: true, company: true } }, ticketTypes: true },
+      orderBy: { createdAt: "desc" },
+    });
+  })
   .get("/:id", async ({ params, set }) => {
-    // Try by slug first, then by id
     let event = await prisma.event.findUnique({
       where: { slug: params.id },
       include: { organizer: { select: { id: true, name: true, company: true } }, ticketTypes: true },
@@ -42,7 +51,6 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
     if (!user || (user.role !== "ORGANIZER" && user.role !== "ADMIN")) {
       set.status = 403; return { error: "Only organizers can create events" };
     }
-    // No plan limit on creation - plan is selected when activating/publishing event
     let slug = slugify(body.title);
     const existing = await prisma.event.findUnique({ where: { slug } });
     if (existing) slug = `${slug}-${Date.now().toString(36)}`;
@@ -71,6 +79,32 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
     if (event.organizerId !== user.id && user.role !== "ADMIN") {
       set.status = 403; return { error: "Not authorized" };
     }
+
+    // FIX 13: Plan enforcement when publishing
+    if (body.status === "PUBLISHED" && event.status !== "PUBLISHED") {
+      // Check if user has UNLIMITED plan
+      if (user.plan !== "UNLIMITED") {
+        // Check if event already has a plan type set
+        if (!event.eventPlanType) {
+          // Check if user has free events left
+          if (user.freeEventsUsed < 10) {
+            // Auto-assign free plan and increment counter
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { freeEventsUsed: { increment: 1 } },
+            });
+            await prisma.event.update({
+              where: { id: params.id },
+              data: { eventPlanType: "free", eventPlanTicketLimit: 50 },
+            });
+          } else {
+            set.status = 400;
+            return { error: "Debes activar un plan para publicar este evento" };
+          }
+        }
+      }
+    }
+
     const data: any = { ...body };
     if (body.startDate) data.startDate = new Date(body.startDate);
     if (body.endDate) data.endDate = new Date(body.endDate);
