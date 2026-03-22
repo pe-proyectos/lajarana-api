@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ORGANIZER
+  ATTENDEE
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  role      Role     @default(ATTENDEE)
+  company   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events  Event[]
+  tickets Ticket[]
+  orders  Order[]
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  slug        String      @unique
+  organizerId String
+  organizer   User        @relation(fields: [organizerId], references: [id])
+  venue       String
+  address     String?
+  city        String
+  startDate   DateTime
+  endDate     DateTime
+  coverImage  String?
+  status      EventStatus @default(DRAFT)
+  maxCapacity Int?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  ticketTypes TicketType[]
+  tickets     Ticket[]
+  orders      Order[]
+}
+
+model TicketType {
+  id          String    @id @default(cuid())
+  eventId     String
+  event       Event     @relation(fields: [eventId], references: [id])
+  name        String
+  price       Decimal   @db.Decimal(10, 2)
+  quantity    Int
+  sold        Int       @default(0)
+  description String?
+  salesStart  DateTime?
+  salesEnd    DateTime?
+
+  tickets    Ticket[]
+  orderItems OrderItem[]
+}
+
+model Ticket {
+  id               String       @id @default(cuid())
+  ticketTypeId     String
+  ticketType       TicketType   @relation(fields: [ticketTypeId], references: [id])
+  eventId          String
+  event            Event        @relation(fields: [eventId], references: [id])
+  buyerId          String
+  buyer            User         @relation(fields: [buyerId], references: [id])
+  qrCode           String       @unique @default(uuid())
+  qrToken          String?
+  qrTokenExpiresAt DateTime?
+  status           TicketStatus @default(VALID)
+  purchasedAt      DateTime     @default(now())
+  usedAt           DateTime?
+}
+
+model Order {
+  id               String      @id @default(cuid())
+  buyerId          String
+  buyer            User        @relation(fields: [buyerId], references: [id])
+  eventId          String
+  event            Event       @relation(fields: [eventId], references: [id])
+  total            Decimal     @db.Decimal(10, 2)
+  status           OrderStatus @default(PENDING)
+  paymentMethod    String?
+  paymentReference String?
+  createdAt        DateTime    @default(now())
+
+  items OrderItem[]
+}
+
+model OrderItem {
+  id           String     @id @default(cuid())
+  orderId      String
+  order        Order      @relation(fields: [orderId], references: [id])
+  ticketTypeId String
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  quantity     Int
+  unitPrice    Decimal    @db.Decimal(10, 2)
+  subtotal     Decimal    @db.Decimal(10, 2)
+}
