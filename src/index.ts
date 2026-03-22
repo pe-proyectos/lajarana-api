@@ -8,6 +8,7 @@ import { orderRoutes } from "./routes/orders";
 import { publicRoutes } from "./routes/public";
 import { planRoutes } from "./routes/plans";
 import { userRoutes } from "./routes/users";
+import { paymentRoutes } from "./routes/payments";
 
 const app = new Elysia()
   .use(cors({
@@ -29,6 +30,7 @@ const app = new Elysia()
   .use(publicRoutes)
   .use(planRoutes)
   .use(userRoutes)
+  .use(paymentRoutes)
   .listen(3000);
 
 console.log(`🎭 LaJarana API running on port ${app.server?.port}`);
