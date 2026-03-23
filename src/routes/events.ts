@@ -118,7 +118,15 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
     if (event.organizerId !== user.id && user.role !== "ADMIN") {
       set.status = 403; return { error: "Not authorized" };
     }
-    return prisma.event.update({ where: { id: params.id }, data: { status: "CANCELLED" } });
+    // Delete related records first, then the event
+    await prisma.$transaction([
+      prisma.orderItem.deleteMany({ where: { order: { eventId: params.id } } }),
+      prisma.order.deleteMany({ where: { eventId: params.id } }),
+      prisma.ticket.deleteMany({ where: { eventId: params.id } }),
+      prisma.ticketType.deleteMany({ where: { eventId: params.id } }),
+      prisma.event.delete({ where: { id: params.id } }),
+    ]);
+    return { message: "Evento eliminado" };
   })
   .get("/:id/stats", async ({ params, headers, jwt, set }) => {
     const user = await getUserFromToken(jwt, headers.authorization);
