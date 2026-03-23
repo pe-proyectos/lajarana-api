@@ -371,8 +371,11 @@ async function generateTickets(orderId: string, buyerId: string, eventId: string
   });
 
   for (const item of orderItems) {
-    // Create individual tickets
-    const ticketData = Array.from({ length: item.quantity }, () => ({
+    // For box/combo tickets, generate boxQuantity tickets per unit purchased
+    const boxQty = item.ticketType.isBox ? (item.ticketType.boxQuantity || 1) : 1;
+    const totalTickets = item.quantity * boxQty;
+
+    const ticketData = Array.from({ length: totalTickets }, () => ({
       ticketTypeId: item.ticketTypeId,
       eventId,
       buyerId,
@@ -381,7 +384,7 @@ async function generateTickets(orderId: string, buyerId: string, eventId: string
 
     await prisma.ticket.createMany({ data: ticketData });
 
-    // Update sold count
+    // Update sold count (by units purchased, not total tickets)
     await prisma.ticketType.update({
       where: { id: item.ticketTypeId },
       data: { sold: { increment: item.quantity } },

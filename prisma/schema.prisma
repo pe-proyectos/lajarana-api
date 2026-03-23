@@ -123,6 +123,8 @@ model TicketType {
   description String?
   salesStart  DateTime?
   salesEnd    DateTime?
+  isBox       Boolean   @default(false)
+  boxQuantity Int       @default(1)
 
   tickets    Ticket[]
   orderItems OrderItem[]

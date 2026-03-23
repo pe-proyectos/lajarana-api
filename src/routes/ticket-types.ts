@@ -32,6 +32,8 @@ export const ticketTypeRoutes = new Elysia({ prefix: "/api/ticket-types" })
       description: t.Optional(t.String()),
       salesStart: t.Optional(t.String()),
       salesEnd: t.Optional(t.String()),
+      isBox: t.Optional(t.Boolean()),
+      boxQuantity: t.Optional(t.Number()),
     }),
   })
   .patch("/:id", async ({ params, body, headers, jwt, set }) => {
