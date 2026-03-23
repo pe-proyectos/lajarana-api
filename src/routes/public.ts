@@ -32,9 +32,9 @@ export const publicRoutes = new Elysia({ prefix: "/api/public" })
     return { events, total, page, totalPages: Math.ceil(total / limit) };
   })
   .get("/events/:slug", async ({ params, set }) => {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.slug);
+    const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.slug) || /^c[a-z0-9]{24,}$/.test(params.slug);
     const event = await prisma.event.findUnique({
-      where: isUuid ? { id: params.slug } : { slug: params.slug },
+      where: isId ? { id: params.slug } : { slug: params.slug },
       include: {
         organizer: { select: { id: true, name: true, company: true } },
         ticketTypes: true,
