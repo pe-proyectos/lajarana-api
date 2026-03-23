@@ -23,14 +23,24 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
     });
   })
   // FIX 5: Organizer's own events (all statuses)
-  .get("/my", async ({ headers, jwt, set }) => {
+  .get("/my", async ({ headers, jwt, set, query }) => {
     const user = await getUserFromToken(jwt, headers.authorization);
     if (!user) { set.status = 401; return { error: "Unauthorized" }; }
-    return prisma.event.findMany({
-      where: { organizerId: user.id },
-      include: { organizer: { select: { id: true, name: true, company: true } }, ticketTypes: true },
-      orderBy: { createdAt: "desc" },
-    });
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(query.limit) || 20));
+    const skip = (page - 1) * limit;
+    const where = { organizerId: user.id };
+    const [events, total] = await Promise.all([
+      prisma.event.findMany({
+        where,
+        include: { organizer: { select: { id: true, name: true, company: true } }, ticketTypes: true },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip,
+      }),
+      prisma.event.count({ where }),
+    ]);
+    return { events, total, page, totalPages: Math.ceil(total / limit) };
   })
   .get("/:id", async ({ params, set }) => {
     let event = await prisma.event.findUnique({
@@ -67,6 +77,7 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
       startDate: t.String(),
       endDate: t.String(),
       coverImage: t.Optional(t.String()),
+      category: t.Optional(t.String()),
       status: t.Optional(t.Union([t.Literal("DRAFT"), t.Literal("PUBLISHED")])),
       maxCapacity: t.Optional(t.Number()),
     }),

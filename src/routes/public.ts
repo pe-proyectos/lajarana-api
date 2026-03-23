@@ -1,21 +1,34 @@
 import { Elysia } from "elysia";
 import { prisma } from "../lib/prisma";
 
+const CATEGORIES = ["Concierto", "Festival", "Fiesta", "Teatro", "Deportes", "Conferencia", "Otro"];
+
 export const publicRoutes = new Elysia({ prefix: "/api/public" })
   .get("/events", async ({ query }) => {
     const where: any = { status: "PUBLISHED" };
     if (query.city) where.city = { contains: query.city, mode: "insensitive" };
     if (query.from) where.startDate = { gte: new Date(query.from as string) };
-    return prisma.event.findMany({
-      where,
-      include: {
-        organizer: { select: { id: true, name: true, company: true } },
-        ticketTypes: { select: { id: true, name: true, price: true, quantity: true, sold: true } },
-      },
-      orderBy: { startDate: "asc" },
-      take: Number(query.limit) || 20,
-      skip: Number(query.offset) || 0,
-    });
+    if (query.category) where.category = query.category as string;
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(query.limit) || 12));
+    const skip = (page - 1) * limit;
+
+    const [events, total] = await Promise.all([
+      prisma.event.findMany({
+        where,
+        include: {
+          organizer: { select: { id: true, name: true, company: true } },
+          ticketTypes: { select: { id: true, name: true, price: true, quantity: true, sold: true } },
+        },
+        orderBy: { startDate: "asc" },
+        take: limit,
+        skip,
+      }),
+      prisma.event.count({ where }),
+    ]);
+
+    return { events, total, page, totalPages: Math.ceil(total / limit) };
   })
   .get("/events/:slug", async ({ params, set }) => {
     const event = await prisma.event.findUnique({

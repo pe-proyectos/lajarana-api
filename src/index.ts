@@ -10,6 +10,7 @@ import { planRoutes } from "./routes/plans";
 import { userRoutes } from "./routes/users";
 import { paymentRoutes } from "./routes/payments";
 import { uploadRoutes } from "./routes/upload";
+import { categoryRoutes } from "./routes/categories";
 
 if (!process.env.JWT_SECRET) {
   console.error("FATAL: JWT_SECRET environment variable is required");
@@ -38,6 +39,7 @@ const app = new Elysia()
   .use(userRoutes)
   .use(paymentRoutes)
   .use(uploadRoutes)
+  .use(categoryRoutes)
   .listen(3000);
 
 console.log(`🎭 LaJarana API running on port ${app.server?.port}`);

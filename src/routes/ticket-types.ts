@@ -46,4 +46,18 @@ export const ticketTypeRoutes = new Elysia({ prefix: "/api/ticket-types" })
     if (body.salesStart) data.salesStart = new Date(body.salesStart);
     if (body.salesEnd) data.salesEnd = new Date(body.salesEnd);
     return prisma.ticketType.update({ where: { id: params.id }, data });
+  })
+  .delete("/:id", async ({ params, headers, jwt, set }) => {
+    const user = await getUserFromToken(jwt, headers.authorization);
+    if (!user) { set.status = 401; return { error: "Unauthorized" }; }
+    const tt = await prisma.ticketType.findUnique({ where: { id: params.id }, include: { event: true } });
+    if (!tt) { set.status = 404; return { error: "Ticket type not found" }; }
+    if (tt.event.organizerId !== user.id && user.role !== "ADMIN") {
+      set.status = 403; return { error: "Not authorized" };
+    }
+    if (tt.sold > 0) {
+      set.status = 400; return { error: "No se puede eliminar un tipo de entrada con ventas" };
+    }
+    await prisma.ticketType.delete({ where: { id: params.id } });
+    return { message: "Tipo de entrada eliminado" };
   });
