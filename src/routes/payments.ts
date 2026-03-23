@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { jwt } from "@elysiajs/jwt";
 import { prisma } from "../lib/prisma";
 import { getUserFromToken } from "../lib/auth";
+import { sendPurchaseConfirmation } from "../lib/email";
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
 /**
@@ -78,6 +79,38 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
       return { error: "No hay entradas seleccionadas" };
     }
 
+    // Idempotency: check for existing pending order with same items (< 30 min old)
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const existingOrder = await prisma.order.findFirst({
+      where: {
+        buyerId: user.id,
+        eventId,
+        status: "PENDING",
+        createdAt: { gte: thirtyMinAgo },
+      },
+      include: { items: true },
+    });
+
+    if (existingOrder && existingOrder.mpPreferenceId) {
+      // Check if items match
+      const existingItemsKey = existingOrder.items
+        .map(i => `${i.ticketTypeId}:${i.quantity}`)
+        .sort()
+        .join(',');
+      const newItemsKey = orderItems
+        .map(i => `${i.ticketTypeId}:${i.quantity}`)
+        .sort()
+        .join(',');
+
+      if (existingItemsKey === newItemsKey) {
+        return {
+          orderId: existingOrder.id,
+          preferenceId: existingOrder.mpPreferenceId,
+          initPoint: `https://www.mercadopago.com.pe/checkout/v1/redirect?pref_id=${existingOrder.mpPreferenceId}`,
+        };
+      }
+    }
+
     // FIX 7: Enforce ticket limits based on event plan
     const totalRequested = orderItems.reduce((sum, i) => sum + i.quantity, 0);
     const totalAlreadySold = event.ticketTypes.reduce((sum, tt) => sum + tt.sold, 0);
@@ -111,6 +144,9 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
 
       // Generate tickets for free order
       await generateTickets(order.id, user.id, eventId);
+
+      // Send confirmation email
+      await sendPurchaseConfirmationEmail(order.id, user.email, user.name);
 
       return {
         orderId: order.id,
@@ -230,6 +266,9 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
               },
             });
             await generateTickets(orderId, order.buyerId, order.eventId);
+            // Send confirmation email
+            const buyer = await prisma.user.findUnique({ where: { id: order.buyerId } });
+            if (buyer) await sendPurchaseConfirmationEmail(orderId, buyer.email, buyer.name);
           }
         } else if (payment.status === "rejected" || payment.status === "cancelled") {
           await prisma.order.update({
@@ -290,6 +329,40 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
     return { order, tickets };
   });
 
+
+async function sendPurchaseConfirmationEmail(orderId: string, buyerEmail: string, buyerName: string) {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        event: { select: { title: true, startDate: true, venue: true } },
+        items: { include: { ticketType: { select: { name: true, price: true } } } },
+      },
+    });
+    if (!order) return;
+
+    const ticketInfos = order.items.map(item => ({
+      name: item.ticketType.name,
+      quantity: item.quantity,
+      unitPrice: Number(item.ticketType.price),
+    }));
+
+    await sendPurchaseConfirmation(
+      {
+        id: order.id,
+        total: Number(order.total),
+        eventTitle: order.event.title,
+        eventDate: order.event.startDate?.toISOString(),
+        eventVenue: order.event.venue || undefined,
+      },
+      ticketInfos,
+      buyerEmail,
+      buyerName,
+    );
+  } catch (err) {
+    console.error("[Email] Error sending purchase confirmation:", err);
+  }
+}
 
 async function generateTickets(orderId: string, buyerId: string, eventId: string) {
   const orderItems = await prisma.orderItem.findMany({

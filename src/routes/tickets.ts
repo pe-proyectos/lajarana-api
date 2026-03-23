@@ -69,23 +69,23 @@ export const ticketRoutes = new Elysia({ prefix: "/api/tickets" })
       where: { id: params.id },
       include: { event: true, ticketType: true, buyer: { select: { name: true, email: true } } },
     });
-    if (!ticket) { set.status = 404; return { error: "Ticket not found" }; }
+    if (!ticket) { set.status = 404; return { error: "Ticket no encontrado" }; }
     if (ticket.event.organizerId !== user.id && user.role !== "ADMIN") {
-      set.status = 403; return { error: "Not your event" };
+      set.status = 403; return { error: "Este ticket no es de tu evento" };
     }
-    if (ticket.status === "USED") { set.status = 400; return { error: "Ticket already used", ticket }; }
-    if (ticket.status !== "VALID") { set.status = 400; return { error: `Ticket status: ${ticket.status}` }; }
+    if (ticket.status === "USED") { set.status = 400; return { error: "Ticket ya usado", ticket }; }
+    if (ticket.status !== "VALID") { set.status = 400; return { error: `Ticket no válido (estado: ${ticket.status})` }; }
     // Validate QR
     if (ticket.qrCode !== body.qrCode || ticket.qrToken !== body.qrToken) {
-      set.status = 400; return { error: "Invalid QR code" };
+      set.status = 400; return { error: "Código QR no válido" };
     }
     if (ticket.qrTokenExpiresAt && ticket.qrTokenExpiresAt < new Date()) {
-      set.status = 400; return { error: "QR token expired" };
+      set.status = 400; return { error: "QR expirado — el asistente debe actualizar su QR" };
     }
     const updated = await prisma.ticket.update({
       where: { id: params.id },
       data: { status: "USED", usedAt: new Date() },
-      include: { ticketType: true, buyer: { select: { name: true, email: true } } },
+      include: { event: { select: { title: true } }, ticketType: true, buyer: { select: { name: true, email: true } } },
     });
     return { valid: true, ticket: updated };
   }, {
