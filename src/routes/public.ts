@@ -8,7 +8,7 @@ export const publicRoutes = new Elysia({ prefix: "/api/public" })
     const where: any = { status: "PUBLISHED" };
     if (query.city) where.city = { contains: query.city, mode: "insensitive" };
     if (query.from) where.startDate = { gte: new Date(query.from as string) };
-    if (query.category) where.category = query.category as string;
+    if (query.category) where.category = { equals: query.category as string, mode: "insensitive" };
 
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(50, Math.max(1, Number(query.limit) || 12));
@@ -32,8 +32,9 @@ export const publicRoutes = new Elysia({ prefix: "/api/public" })
     return { events, total, page, totalPages: Math.ceil(total / limit) };
   })
   .get("/events/:slug", async ({ params, set }) => {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.slug);
     const event = await prisma.event.findUnique({
-      where: { slug: params.slug },
+      where: isUuid ? { id: params.slug } : { slug: params.slug },
       include: {
         organizer: { select: { id: true, name: true, company: true } },
         ticketTypes: true,

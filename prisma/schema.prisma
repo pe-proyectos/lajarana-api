@@ -147,6 +147,7 @@ model EntradaBox {
   active        Boolean    @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+  orderItems    OrderItem[]
 }
 
 model Ticket {
@@ -183,12 +184,14 @@ model Order {
 }
 
 model OrderItem {
-  id           String     @id @default(cuid())
-  orderId      String
-  order        Order      @relation(fields: [orderId], references: [id])
-  ticketTypeId String
-  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
-  quantity     Int
-  unitPrice    Decimal    @db.Decimal(10, 2)
-  subtotal     Decimal    @db.Decimal(10, 2)
+  id            String      @id @default(cuid())
+  orderId       String
+  order         Order       @relation(fields: [orderId], references: [id])
+  ticketTypeId  String
+  ticketType    TicketType  @relation(fields: [ticketTypeId], references: [id])
+  quantity      Int
+  unitPrice     Decimal     @db.Decimal(10, 2)
+  subtotal      Decimal     @db.Decimal(10, 2)
+  entradaBoxId  String?
+  entradaBox    EntradaBox? @relation(fields: [entradaBoxId], references: [id])
 }

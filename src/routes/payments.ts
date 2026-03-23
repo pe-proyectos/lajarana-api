@@ -76,10 +76,8 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
           quantity: item.quantity,
           unitPrice,
           subtotal,
-          // Store box info for ticket generation
-          _entradaBoxId: box.id,
-          _boxQuantity: box.quantity,
-        } as any);
+          entradaBoxId: box.id,
+        });
 
         mpItems.push({
           id: box.id,
@@ -417,20 +415,12 @@ async function generateTickets(orderId: string, buyerId: string, eventId: string
     include: { ticketType: true },
   });
 
-  // Get the order to check for box metadata stored during creation
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-
   for (const item of orderItems) {
-    // Check if this order item was for an entrada box
-    // We detect boxes by checking if any active EntradaBox matches the ticketType + price
-    const matchingBox = await prisma.entradaBox.findFirst({
-      where: {
-        ticketTypeId: item.ticketTypeId,
-        eventId,
-        active: true,
-        price: item.unitPrice,
-      },
-    });
+    // Only treat as box purchase if explicitly linked to an EntradaBox
+    let matchingBox: any = null;
+    if (item.entradaBoxId) {
+      matchingBox = await prisma.entradaBox.findUnique({ where: { id: item.entradaBoxId } });
+    }
 
     let totalTickets: number;
     if (matchingBox) {
@@ -447,10 +437,9 @@ async function generateTickets(orderId: string, buyerId: string, eventId: string
         data: { sold: { increment: totalTickets } },
       });
     } else {
-      // Regular or legacy box ticket
-      const boxQty = item.ticketType.isBox ? (item.ticketType.boxQuantity || 1) : 1;
-      totalTickets = item.quantity * boxQty;
-      // Update sold count (by units purchased, not total tickets)
+      // Regular ticket
+      totalTickets = item.quantity;
+      // Update sold count
       await prisma.ticketType.update({
         where: { id: item.ticketTypeId },
         data: { sold: { increment: item.quantity } },

@@ -134,6 +134,7 @@ export const eventRoutes = new Elysia({ prefix: "/api/events" })
       prisma.orderItem.deleteMany({ where: { order: { eventId: params.id } } }),
       prisma.order.deleteMany({ where: { eventId: params.id } }),
       prisma.ticket.deleteMany({ where: { eventId: params.id } }),
+      prisma.entradaBox.deleteMany({ where: { eventId: params.id } }),
       prisma.ticketType.deleteMany({ where: { eventId: params.id } }),
       prisma.event.delete({ where: { id: params.id } }),
     ]);
