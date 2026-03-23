@@ -36,6 +36,7 @@ enum OrderStatus {
 
 enum UserPlan {
   FREE
+  PRO
   UNLIMITED
 }
 
