@@ -19,7 +19,7 @@ export const publicRoutes = new Elysia({ prefix: "/api/public" })
         where,
         include: {
           organizer: { select: { id: true, name: true, company: true } },
-          ticketTypes: { select: { id: true, name: true, price: true, quantity: true, sold: true } },
+          ticketTypes: { select: { id: true, name: true, price: true, quantity: true, sold: true, isBox: true, boxQuantity: true, description: true } },
         },
         orderBy: { startDate: "asc" },
         take: limit,
