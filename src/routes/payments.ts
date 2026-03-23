@@ -45,6 +45,52 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
     const mpItems: any[] = [];
 
     for (const item of items) {
+      // Check if this is an entrada box purchase
+      if (item.entradaBoxId) {
+        const box = await prisma.entradaBox.findUnique({
+          where: { id: item.entradaBoxId },
+          include: { ticketType: true },
+        });
+        if (!box || box.eventId !== eventId || !box.active) {
+          set.status = 400; return { error: `Box no encontrado: ${item.entradaBoxId}` };
+        }
+        if (box.maxBoxes && (box.soldBoxes + item.quantity) > box.maxBoxes) {
+          const available = box.maxBoxes - box.soldBoxes;
+          set.status = 400;
+          return { error: `Solo quedan ${available} boxes de "${box.name}"` };
+        }
+        // Check ticket availability (each box = box.quantity tickets)
+        const ticketsNeeded = item.quantity * box.quantity;
+        const ttAvailable = box.ticketType.quantity - box.ticketType.sold;
+        if (ticketsNeeded > ttAvailable) {
+          set.status = 400;
+          return { error: `No hay suficientes entradas para "${box.name}"` };
+        }
+
+        const unitPrice = Number(box.price);
+        const subtotal = unitPrice * item.quantity;
+        total += subtotal;
+
+        orderItems.push({
+          ticketTypeId: box.ticketTypeId,
+          quantity: item.quantity,
+          unitPrice,
+          subtotal,
+          // Store box info for ticket generation
+          _entradaBoxId: box.id,
+          _boxQuantity: box.quantity,
+        } as any);
+
+        mpItems.push({
+          id: box.id,
+          title: `${event.title} - ${box.name}`,
+          quantity: item.quantity,
+          unit_price: unitPrice,
+          currency_id: "PEN",
+        });
+        continue;
+      }
+
       const tt = event.ticketTypes.find(t => t.id === item.ticketTypeId);
       if (!tt) { set.status = 400; return { error: `Tipo de entrada no encontrado: ${item.ticketTypeId}` }; }
       const available = tt.quantity - tt.sold;
@@ -202,8 +248,9 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
     body: t.Object({
       eventId: t.String(),
       items: t.Array(t.Object({
-        ticketTypeId: t.String(),
+        ticketTypeId: t.Optional(t.String()),
         quantity: t.Number(),
+        entradaBoxId: t.Optional(t.String()),
       })),
     }),
   })
@@ -370,10 +417,45 @@ async function generateTickets(orderId: string, buyerId: string, eventId: string
     include: { ticketType: true },
   });
 
+  // Get the order to check for box metadata stored during creation
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+
   for (const item of orderItems) {
-    // For box/combo tickets, generate boxQuantity tickets per unit purchased
-    const boxQty = item.ticketType.isBox ? (item.ticketType.boxQuantity || 1) : 1;
-    const totalTickets = item.quantity * boxQty;
+    // Check if this order item was for an entrada box
+    // We detect boxes by checking if any active EntradaBox matches the ticketType + price
+    const matchingBox = await prisma.entradaBox.findFirst({
+      where: {
+        ticketTypeId: item.ticketTypeId,
+        eventId,
+        active: true,
+        price: item.unitPrice,
+      },
+    });
+
+    let totalTickets: number;
+    if (matchingBox) {
+      // Box purchase: generate quantity * box.quantity tickets
+      totalTickets = item.quantity * matchingBox.quantity;
+      // Increment soldBoxes
+      await prisma.entradaBox.update({
+        where: { id: matchingBox.id },
+        data: { soldBoxes: { increment: item.quantity } },
+      });
+      // Update ticket type sold count by actual tickets generated
+      await prisma.ticketType.update({
+        where: { id: item.ticketTypeId },
+        data: { sold: { increment: totalTickets } },
+      });
+    } else {
+      // Regular or legacy box ticket
+      const boxQty = item.ticketType.isBox ? (item.ticketType.boxQuantity || 1) : 1;
+      totalTickets = item.quantity * boxQty;
+      // Update sold count (by units purchased, not total tickets)
+      await prisma.ticketType.update({
+        where: { id: item.ticketTypeId },
+        data: { sold: { increment: item.quantity } },
+      });
+    }
 
     const ticketData = Array.from({ length: totalTickets }, () => ({
       ticketTypeId: item.ticketTypeId,
@@ -383,11 +465,5 @@ async function generateTickets(orderId: string, buyerId: string, eventId: string
     }));
 
     await prisma.ticket.createMany({ data: ticketData });
-
-    // Update sold count (by units purchased, not total tickets)
-    await prisma.ticketType.update({
-      where: { id: item.ticketTypeId },
-      data: { sold: { increment: item.quantity } },
-    });
   }
 }

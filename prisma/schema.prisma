@@ -107,9 +107,10 @@ model Event {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  ticketTypes TicketType[]
-  tickets     Ticket[]
-  orders      Order[]
+  ticketTypes  TicketType[]
+  tickets      Ticket[]
+  orders       Order[]
+  entradaBoxes EntradaBox[]
 }
 
 model TicketType {
@@ -128,6 +129,24 @@ model TicketType {
 
   tickets    Ticket[]
   orderItems OrderItem[]
+  entradaBoxes EntradaBox[]
+}
+
+model EntradaBox {
+  id            String     @id @default(uuid())
+  eventId       String
+  event         Event      @relation(fields: [eventId], references: [id])
+  name          String
+  description   String?
+  ticketTypeId  String
+  ticketType    TicketType @relation(fields: [ticketTypeId], references: [id])
+  quantity      Int
+  price         Decimal    @db.Decimal(10, 2)
+  maxBoxes      Int?
+  soldBoxes     Int        @default(0)
+  active        Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 }
 
 model Ticket {

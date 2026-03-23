@@ -20,6 +20,7 @@ export const publicRoutes = new Elysia({ prefix: "/api/public" })
         include: {
           organizer: { select: { id: true, name: true, company: true } },
           ticketTypes: { select: { id: true, name: true, price: true, quantity: true, sold: true, isBox: true, boxQuantity: true, description: true } },
+          entradaBoxes: { where: { active: true }, select: { id: true, name: true, description: true, quantity: true, price: true, maxBoxes: true, soldBoxes: true, ticketType: { select: { id: true, name: true } } } },
         },
         orderBy: { startDate: "asc" },
         take: limit,
@@ -36,6 +37,7 @@ export const publicRoutes = new Elysia({ prefix: "/api/public" })
       include: {
         organizer: { select: { id: true, name: true, company: true } },
         ticketTypes: true,
+        entradaBoxes: { where: { active: true }, include: { ticketType: { select: { id: true, name: true, price: true } } } },
       },
     });
     if (!event || event.status === "DRAFT") { set.status = 404; return { error: "Event not found" }; }
