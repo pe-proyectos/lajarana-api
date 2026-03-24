@@ -1,5 +1,5 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL = "entradas@luminari.agency";
+const FROM_EMAIL = "lajarana@luminari.agency";
 const FROM_NAME = "LaJarana";
 
 interface OrderInfo {
