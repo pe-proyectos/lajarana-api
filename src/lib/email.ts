@@ -75,7 +75,7 @@ ${content}
 <tr><td style="text-align:center;padding:24px 0;">
 <p style="margin:0;color:#666;font-size:12px;">© 2026 LaJarana by Luminari Agency</p>
 <p style="margin:8px 0 0;color:#555;font-size:11px;">
-<a href="https://dev-lajarana.luminari.agency" style="color:#8B5CF6;text-decoration:none;">dev-lajarana.luminari.agency</a>
+<a href="https://lajarana.luminari.agency" style="color:#8B5CF6;text-decoration:none;">lajarana.luminari.agency</a>
 </p>
 </td></tr>
 </table>
@@ -122,7 +122,7 @@ ${ticketRows}
 </div>
 
 <div style="text-align:center;margin-top:24px;">
-<a href="https://dev-lajarana.luminari.agency/mi-cuenta/tickets" style="display:inline-block;background:#8B5CF6;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:16px;">Ver mis entradas</a>
+<a href="https://lajarana.luminari.agency/mi-cuenta/tickets" style="display:inline-block;background:#8B5CF6;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:16px;">Ver mis entradas</a>
 </div>
 
 <p style="color:#666;font-size:12px;margin-top:24px;text-align:center;">Orden: ${order.id}</p>
@@ -145,7 +145,7 @@ Ahora puedes comprar entradas para los mejores eventos y fiestas. ¡La juerga te
 </p>
 
 <div style="text-align:center;margin-top:24px;">
-<a href="https://dev-lajarana.luminari.agency" style="display:inline-block;background:#8B5CF6;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:16px;">Explorar eventos</a>
+<a href="https://lajarana.luminari.agency" style="display:inline-block;background:#8B5CF6;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:16px;">Explorar eventos</a>
 </div>
 `;
 

@@ -216,9 +216,9 @@ export const paymentRoutes = new Elysia({ prefix: "/api/payments" })
       body: {
         items: mpItems,
         back_urls: {
-          success: `https://dev-lajarana.luminari.agency/checkout/success?order=${order.id}`,
-          failure: `https://dev-lajarana.luminari.agency/checkout/failure?order=${order.id}`,
-          pending: `https://dev-lajarana.luminari.agency/checkout/pending?order=${order.id}`,
+          success: `https://lajarana.luminari.agency/checkout/success?order=${order.id}`,
+          failure: `https://lajarana.luminari.agency/checkout/failure?order=${order.id}`,
+          pending: `https://lajarana.luminari.agency/checkout/pending?order=${order.id}`,
         },
         auto_return: "approved",
         notification_url: "https://lajarana-api.luminari.agency/api/payments/webhook",
